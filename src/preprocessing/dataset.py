@@ -2,8 +2,8 @@ import os
 import numpy as np
 from typing import Dict, List, Tuple
 
-from io_ax6 import load_ax6_csv, resample_to_fs
-from config import session_to_subject, ACTIVE_SECTIONS_DATA_ROOT
+from src.preprocessing.io_ax6 import load_ax6_csv, resample_to_fs
+from src.config import session_to_subject, ACTIVE_SECTIONS_DATA_ROOT
 
 def window_signal(X: np.ndarray, win: int, hop: int) -> np.ndarray:
     T, C = X.shape

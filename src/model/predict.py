@@ -2,10 +2,9 @@ import os
 import numpy as np
 import pandas as pd
 
-from config import Config, default_session_to_activity
-from io_ax6 import find_session_file, load_ax6_csv, resample_to_fs
-from clap_sync import align_by_clap
-from dataset import build_two_wrist_tensor, trim_after_clap, window_signal, remove_idle_windows
+from config import Config
+from src.preprocessing.io_ax6 import find_session_file, load_ax6_csv, resample_to_fs
+from src.preprocessing.dataset import window_signal
 
 from tensorflow import keras
 

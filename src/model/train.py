@@ -6,9 +6,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, confusion_matrix
 from tensorflow import keras
 
-from config import Config, default_session_to_activity
-from dataset import build_dataset
-from model_cnn import make_cnn
+from src.config import Config, default_session_to_activity
+from src.preprocessing.dataset import build_dataset
+from src.model.model_cnn import make_cnn
 
 def main():
     cfg = Config()
