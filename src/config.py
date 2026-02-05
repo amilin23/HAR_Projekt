@@ -24,9 +24,8 @@ class Config:
     sessions: List[int] = None
 
     # Windowing
-    win_sec: float = 2.0
-    hop_sec: float = 1.0
     win_sec: float = 1.0
+    hop_sec: float = 0.5
 
     # Clap handling
     clap_search_sec: float = 8.0
@@ -39,9 +38,9 @@ class Config:
     idle_energy_threshold: float = 0.08
 
     # Train
-    test_size: float = 0.35
+    test_size: float = 0.1
     random_state: int = 42
-    batch_size: int = 64
+    batch_size: int = 32
     epochs: int = 40
 
 def default_session_to_activity() -> Dict[int, str]:

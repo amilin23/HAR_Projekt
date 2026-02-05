@@ -6,22 +6,22 @@ def make_cnn(input_shape, n_classes: int) -> keras.Model:
         layers.Input(shape=input_shape),
 
         layers.Conv1D(64, 7, padding="same"),
-        layers.BatchNormalization(),
         layers.ReLU(),
+        layers.BatchNormalization(),
         layers.MaxPool1D(2),
 
-        layers.Conv1D(128, 5, padding="same"),
-        layers.BatchNormalization(),
+        layers.Conv1D(64, 7, padding="same"),
         layers.ReLU(),
+        layers.BatchNormalization(),
         layers.MaxPool1D(2),
 
-        layers.Conv1D(256, 3, padding="same"),
-        layers.BatchNormalization(),
+        layers.Conv1D(64, 7, padding="same"),
         layers.ReLU(),
+        layers.BatchNormalization(),
         layers.GlobalAveragePooling1D(),
 
-        layers.Dense(128, activation="relu"),
-        layers.Dropout(0.3),
+        layers.Dense(64, activation="relu"),
+        layers.Dropout(0.5),
         layers.Dense(n_classes, activation="softmax")
     ])
 
