@@ -55,6 +55,6 @@ def resample_to_fs(df: pd.DataFrame, fs: int) -> pd.DataFrame:
     """
     df = df.copy().reset_index(drop=True)
     # synthetic time: 0, 1/fs, 2/fs, ...
-    df["t"] = pd.to_timedelta(np.arange(len(df)) / fs, unit="s")
+    df["t"] = pd.to_numeric(np.arange(len(df)) / fs)
     return df
 

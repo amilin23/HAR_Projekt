@@ -4,6 +4,8 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parents[1]  # HAR_Projekt/
 DEFAULT_DATA_ROOT = str(BASE_DIR / "ax6_cnn_project" / "data" / "raw")
+TRIMMED_DATA_ROOT = str(BASE_DIR / "ax6_cnn_project" / "data" / "trimmed")
+ACTIVE_SECTIONS_DATA_ROOT = str(BASE_DIR / "ax6_cnn_project" / "data" / "active_sections_tensors")
 
 @dataclass
 class Config:
@@ -24,6 +26,7 @@ class Config:
     # Windowing
     win_sec: float = 2.0
     hop_sec: float = 1.0
+    win_sec: float = 1.0
 
     # Clap handling
     clap_search_sec: float = 8.0
