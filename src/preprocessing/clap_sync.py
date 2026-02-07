@@ -44,14 +44,6 @@ def simple_clap_sync(dfL: pd.DataFrame, dfR: pd.DataFrame, search_sec: float=6, 
         dfL_final = dfL.iloc[abs(offset):].reset_index(drop=True)
         dfR_final = dfR.iloc[:len(dfL_final)].reset_index(drop=True)
 
-    # plotting for quality check
-    plt.figure(figsize=(12, 4))
-    plt.plot(dfL_final['ax'][:800], label="Left (ax)")
-    plt.plot(dfR_final['ax'][:800], label="Rechts (ax)", alpha=0.7)
-    plt.title("Quality Check (first 8 seconds)")
-    plt.legend()
-    plt.show()
-
     return dfL_final, dfR_final
 
 # def find_clap_index(mag: np.ndarray, fs: int, search_sec: float) -> int:

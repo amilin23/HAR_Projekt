@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Dict, Tuple
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parents[1]  # HAR_Projekt/
@@ -21,7 +21,7 @@ class Config:
     fs: int = 100
 
     # Sessions
-    sessions: List[int] = None
+    sessions: Tuple[int, ...] = tuple(range(12, 22))
 
     # Windowing
     win_sec: float = 1.0
