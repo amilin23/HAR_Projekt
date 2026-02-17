@@ -41,11 +41,11 @@ def load_ax6_csv(path: str) -> pd.DataFrame:
     Load an AX6 CSV and return a DataFrame with expected columns.
     This assumes the CSV already includes columns ax/ay/az/gx/gy/gz.
     """
-    df = pd.read_csv(path)
+    df = pd.read_csv(path, names=["t"] + AX6_COLUMNS)
 
-    missing = [c for c in AX6_COLUMNS if c not in df.columns]
-    if missing:
-        raise ValueError(f"Missing columns in {path}: {missing}. Found: {list(df.columns)}")
+    # missing = [c for c in AX6_COLUMNS if c not in df.columns]
+    # if missing:
+    #     raise ValueError(f"Missing columns in {path}: {missing}. Found: {list(df.columns)}")
 
     # Keep only needed columns (stable order)
     return df[AX6_COLUMNS].copy()

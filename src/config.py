@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Tuple, Sequence
+from typing import Dict, Tuple
 
 
 # Project root (HAR_Projekt/)
@@ -12,6 +13,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATA_ROOT = PROJECT_ROOT / "ax6_cnn_project" / "data" / "raw"
 TRIMMED_DATA_ROOT = PROJECT_ROOT / "ax6_cnn_project" / "data" / "trimmed"
 ACTIVE_SECTIONS_DATA_ROOT = PROJECT_ROOT / "ax6_cnn_project" / "data" / "active_sections_tensors"
+
+ACTIVITIES_JSON = PROJECT_ROOT / "activities.json" 
 
 
 @dataclass
@@ -52,15 +55,10 @@ class Config:
     idle_energy_threshold: float = 0.08
 
 
-def default_session_to_activity() -> Dict[int, str]:
+def default_session_to_activity() -> Dict[str, str]:
     """Session → activity mapping used in the dataset."""
-    return {
-        12: "walk", 13: "walk",
-        14: "jogging", 15: "jogging",
-        16: "situp", 17: "situp",
-        18: "jumping_jacks", 19: "jumping_jacks",
-        20: "squat", 21: "squat",
-    }
+    with open(ACTIVITIES_JSON) as f:
+        return json.load(f)
 
 
 def session_to_subject(session: int) -> str:
