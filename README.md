@@ -29,7 +29,7 @@ The objective is to classify physical activities from wearable IMU signals recor
 
 ---
 
-## Important Design Choice (Independent Wrist Training)
+## Independent Wrist Training
 
 This project uses **independent-wrist learning**:
 
@@ -41,8 +41,6 @@ This project uses **independent-wrist learning**:
 **Why this design?**
 - Doubles dataset size
 - More stable training with limited data
-
-> Sensor fusion (12-channel model) is planned as future work.
 
 ---
 
@@ -156,11 +154,6 @@ Stratified by:
 
 Session-level prediction uses majority voting:
 
-```python
-Counter(y_pred[idx]).most_common(1)
-```
-
----
 
 ### 2. Leave-One-Subject-Out (LOSO)
 
@@ -263,9 +256,7 @@ pip install -r requirements.txt
 - Two-wrist sensor fusion (12-channel model)
 - CNN-LSTM hybrid architecture
 - Data augmentation
-- Domain adaptation
-- Real-time deployment
-
+- 
 ---
 
 ## Key Results
