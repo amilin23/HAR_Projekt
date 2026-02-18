@@ -65,24 +65,22 @@ Test | 350 |
 ---
 
 ## Processing Pipeline
-flowchart TD
-    Raw["Raw AX6 CSV"]
-    Active["Active segment extraction"]
-    Resample["Resample to 100 Hz"]
-    Window["Sliding window (1 s window, 0.5 s hop)"]
-    Norm["Global normalization (train-only)"]
-    BiLSTM["Bidirectional LSTM"]
-    WinPred["Window-level prediction"]
-    SessVote["Session-level majority voting"]
 
-    Raw
-      --> Active
-      --> Resample
-      --> Window
-      --> Norm
-      --> BiLSTM
-      --> WinPred
-      --> SessVote
+Raw AX6 CSV  
+↓  
+Active segment extraction  
+↓  
+Resample to 100 Hz  
+↓  
+Sliding window (1 s, 0.5 s hop)  
+↓  
+Global normalization (train-only)  
+↓  
+Bidirectional LSTM  
+↓  
+Window-level prediction  
+↓  
+Session-level majority voting
 
 ---
 
