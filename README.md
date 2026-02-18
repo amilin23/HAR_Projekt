@@ -115,7 +115,11 @@ HAR_Projekt/
 ```
 
 ## Normalization
-Global normalization is computed using training data only
+Compute mean/std from X_train over (time, windows)
+Apply same stats to train/val/test
+Prevents leakage from test into normalization
+
+
 
 ## Model Architecture
 Bidirectional LSTM for temporal sequence modeling.
