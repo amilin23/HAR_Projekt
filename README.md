@@ -86,6 +86,8 @@ Session-level majority voting
 
 ## Repository Structure
 
+
+```
 HAR_Projekt/
 │
 ├── src/
@@ -105,6 +107,8 @@ HAR_Projekt/
 │ └── trim_data.ipynb
 │
 ├── out/ # Saved model and normalization
+
+```
 
 ## Normalization
 Global normalization is computed using training data only
@@ -202,22 +206,25 @@ out/
 
 ---
 
-## Inference
+## Model Evaluation
 
-Predict activity timeline from new recordings:
+Evaluate the trained model on the test split:
 
 ```bash
-python -m src.model.predict --left left.csv --right right.csv
+python -m src.model.predict
 ```
 
-**Steps**
-- Window the signal
-- Normalize using training statistics
-- Predict class per window
-- Optional temporal smoothing
-- Export timeline CSV
+This script:
 
----
+- Loads the saved model and normalization parameters
+- Rebuilds the dataset
+- Performs the same stratified test split
+- Reports:
+  - Window-level accuracy
+  - Classification report
+  - Confusion matrix
+  - Session-level accuracy (majority vote)
+
 
 ## LOSO Evaluation
 
