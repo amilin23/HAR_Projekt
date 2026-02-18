@@ -65,22 +65,14 @@ Test | 350 |
 ---
 
 ## Processing Pipeline
-Raw AX6 CSV
-↓
-Active segment extraction
-↓
-Resample to 100 Hz
-↓
-Sliding window (1s, 0.5s hop)
-↓
-Global normalization (train-only)
-↓
-Bidirectional LSTM
-↓
-Window-level prediction
-↓
-Session-level majority voting
-
+flowchart TD
+    A[Raw AX6 CSV] --> B[Active segment extraction]
+    B --> C[Resample to 100 Hz]
+    C --> D[Sliding window<br/>(1s window, 0.5s hop)]
+    D --> E[Global normalization<br/>(train-only)]
+    E --> F[Bidirectional LSTM]
+    F --> G[Window-level prediction]
+    G --> H[Session-level majority voting]
 
 ---
 
@@ -263,7 +255,6 @@ pip install -r requirements.txt
 - Two-wrist sensor fusion (12-channel model)
 - CNN-LSTM hybrid architecture
 - Data augmentation
-- 
 ---
 
 ## Key Results
