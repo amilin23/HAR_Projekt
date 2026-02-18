@@ -115,9 +115,9 @@ HAR_Projekt/
 ```
 
 ## Normalization
-Compute mean/std from X_train over (time, windows)
-Apply same stats to train/val/test
-Prevents leakage from test into normalization
+- Compute mean/std from X_train over (time, windows)
+- Apply same stats to train/val/test
+- Prevents leakage from test into normalization
 
 
 
