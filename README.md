@@ -1,7 +1,7 @@
 # Human Activity Recognition using Bidirectional LSTM (AX6 IMU)
 
 End-to-end Human Activity Recognition (HAR) pipeline using wrist-worn inertial sensors and deep learning.  
-This project includes preprocessing, sliding-window dataset generation, Bidirectional LSTM training, multiple evaluation strategies, and inference for activity timeline prediction. Bidirectional LSTM processes the sequence in both forward and backward directions, allowing the model to use past and future context within each window. This improves recognition of motion patterns that depend on the full temporal structure.
+This project includes preprocessing, sliding-window dataset generation, Bidirectional LSTM training and multiple evaluation strategies. Bidirectional LSTM processes the sequence in both forward and backward directions, allowing the model to use past and future context within each window. This improves recognition of motion patterns that depend on the full temporal structure.
 
 Why LSTM? 
 - Learns temporal dynamics (periodicity, peaks, transitions)
@@ -190,11 +190,11 @@ This indicates poor cross-subject generalization due to limited subject diversit
 - Jogging ↔ Jumping Jacks
 
 **Reason**
-Similar lower-body motion dynamics across activities.
-Wrist-only sensors make some leg-dominant activities ambiguous (lunge vs squat)
-Lunge → often predicted as squat (similar movement dynamics at wrist)
-Jumping_jacks ↔ jogging (both are rhythmic, high-energy patterns)
-Some pumping windows predicted as lunge when arm motion overlaps
+- Similar lower-body motion dynamics across activities.
+- Wrist-only sensors make some leg-dominant activities ambiguous (lunge vs squat)
+- Lunge → often predicted as squat (similar movement dynamics at wrist)
+- Jumping_jacks ↔ jogging (both are rhythmic, high-energy patterns)
+- Some pumping windows predicted as lunge when arm motion overlaps
 
 
 ---
