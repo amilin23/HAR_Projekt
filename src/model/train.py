@@ -88,7 +88,6 @@ def main():
     )
     print(f"Train: {len(Xtr)} | Val: {len(Xval)} | Test: {len(Xte)}")
 
-    # Global normalization
     mean, std = _fit_normalizer(Xtr)
     Xtr = _apply_normalizer(Xtr, mean, std)
     Xval = _apply_normalizer(Xval, mean, std)
