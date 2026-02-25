@@ -40,19 +40,7 @@ def build_dataset(
     session_to_activity: Dict[int, str],
     active_root: str = DEFAULT_ACTIVE_ROOT,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """
-    FINAL DESIGN (NO FUSION):
-      - Left wrist windows are samples
-      - Right wrist windows are samples
-      - Both get the same label/session/subject
-      - This doubles data size and avoids needing wrist alignment.
 
-    Returns:
-      X:     [N, win, 6]
-      y_str: [N] str labels
-      g:     [N] subject group
-      s:     [N] session id per window
-    """
     win = int(round(win_sec * fs))
     hop = int(round(hop_sec * fs))
 
