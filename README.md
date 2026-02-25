@@ -179,6 +179,32 @@ This indicates poor cross-subject generalization due to limited subject diversit
 
 ---
 
+### 3. Cross-Validation
+
+To better understand how the split strategy and window overlap affect performance, different combinations were tested systematically.
+
+**Sensor setup:** Single wrist (6 ch) vs. Combined wrists (12 ch)  
+**Window overlap:** 50%, 25%, 0%  
+**Split strategies:** Grouped Subjects, Stratified Subjects, Grouped Wrists, Completely Stratified
+
+The results are visualized in the following [plots](out/crossvalidition/):
+
+- F1 per Split-Strategy & Overlap
+- Single vs. Combined Wrist
+- Mean F1 Heatmap (Overlap × Split)
+- Confusion Matrices – normalized
+- Confusion Matrices – absolute counts
+
+The main takeaway: stratified splits (~0.58 F1) are in line with the random-shuffle baseline, while grouped-subject splits drop below 0.10 — consistent with the LOSO result.
+
+Run cross-validation:
+
+```bash
+python -m src.model.crossvalidation
+```
+
+---
+
 ## Performance Analysis
 
 **Best performing class**
