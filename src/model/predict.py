@@ -1,55 +1,106 @@
+from __future__ import annotations
+
 import os
+from collections import Counter
+
 import numpy as np
 import pandas as pd
-
-from config import Config
-from src.preprocessing.io_ax6 import find_session_file, load_ax6_csv, resample_to_fs
-from src.preprocessing.dataset import window_signal
-
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+from sklearn.model_selection import train_test_split
 from tensorflow import keras
 
-def predict_session(session_id: int):
+from src.config import Config, default_session_to_activity
+from src.preprocessing.dataset import build_dataset
+
+
+def _load_classes(path: str) -> list[str]:
+    with open(path, "r", encoding="utf-8") as f:
+        return [line.strip() for line in f if line.strip()]
+
+
+def _split_data(X: np.ndarray, y: np.ndarray, g: np.ndarray, s: np.ndarray, seed: int, test_size: float):
+    strat = [f"{label}|{group}" for label, group in zip(y, g)]
+    X_train_val, X_test, y_train_val, y_test, g_train_val, g_test, s_train_val, s_test = train_test_split(
+        X, y, g, s,
+        test_size=test_size,
+        random_state=seed,
+        stratify=strat,
+    )
+
+    strat2 = [f"{label}|{group}" for label, group in zip(y_train_val, g_train_val)]
+    X_train, X_val, y_train, y_val, g_train, g_val, s_train, s_val = train_test_split(
+        X_train_val, y_train_val, g_train_val, s_train_val,
+        test_size=0.20,
+        random_state=seed,
+        stratify=strat2,
+    )
+    return X_train, X_val, X_test, y_train, y_val, y_test, s_test
+
+
+def _majority_vote_per_session(y_true: np.ndarray, y_pred: np.ndarray, s: np.ndarray):
+    sess_true = []
+    sess_pred = []
+    for sid in sorted(np.unique(s).tolist()):
+        idx = np.where(s == sid)[0]
+        true_label = Counter(y_true[idx]).most_common(1)[0][0]
+        pred_label = Counter(y_pred[idx]).most_common(1)[0][0]
+        sess_true.append(true_label)
+        sess_pred.append(pred_label)
+    return np.array(sess_true), np.array(sess_pred)
+
+
+def main():
     cfg = Config()
-    cfg.sessions = list(range(12, 22))
 
-    model = keras.models.load_model(os.path.join(cfg.out_dir, "ax6_two_wrist_cnn.keras"))
-    mean = np.load(os.path.join(cfg.out_dir, "norm_mean.npy"))
-    std  = np.load(os.path.join(cfg.out_dir, "norm_std.npy"))
-    classes = pd.read_csv(os.path.join(cfg.out_dir, "classes.csv"), header=None)[0].tolist()
+    model_path = os.path.join(cfg.out_dir, "ax6_lstm_independent_wrist.keras")
+    mean_path = os.path.join(cfg.out_dir, "norm_mean.npy")
+    std_path = os.path.join(cfg.out_dir, "norm_std.npy")
+    classes_path = os.path.join(cfg.out_dir, "classes.txt")
 
-    pL = find_session_file(cfg.data_root, cfg.left_id, session_id)
-    pR = find_session_file(cfg.data_root, cfg.right_id, session_id)
+    if not all(os.path.exists(p) for p in [model_path, mean_path, std_path, classes_path]):
+        raise FileNotFoundError("Missing model artifacts in out/. Run train first.")
 
-    dfL = resample_to_fs(load_ax6_csv(pL), cfg.fs)
-    dfR = resample_to_fs(load_ax6_csv(pR), cfg.fs)
+    model = keras.models.load_model(model_path)
+    mean = np.load(mean_path)
+    std = np.load(std_path)
+    classes = _load_classes(classes_path)
+    class_to_idx = {c: i for i, c in enumerate(classes)}
 
-    dfL_al, dfR_al, shift, clap_idx = align_by_clap(dfL, dfR, cfg.fs, cfg.clap_search_sec)
-    X = build_two_wrist_tensor(dfL_al, dfR_al)
-    X = trim_after_clap(X, clap_idx, cfg.fs, cfg.trim_after_clap_sec, cfg.drop_start_sec, cfg.drop_end_sec)
+    sessions = list(cfg.sessions)
+    session_to_activity = default_session_to_activity()
 
-    win = int(cfg.win_sec * cfg.fs)
-    hop = int(cfg.hop_sec * cfg.fs)
-    W = window_signal(X, win, hop)
-    if cfg.remove_idle:
-        W = remove_idle_windows(W, cfg.idle_energy_threshold)
+    X, y_str, g, s = build_dataset(
+        sessions=sessions,
+        fs=cfg.fs,
+        win_sec=cfg.win_sec,
+        hop_sec=cfg.hop_sec,
+        session_to_activity=session_to_activity,
+    )
+    y = np.array([class_to_idx[v] for v in y_str], dtype=np.int64)
 
-    if len(W) == 0:
-        print("No windows produced (too short or trimmed too much).")
-        return
+    _, _, Xte, _, _, yte, s_te = _split_data(X, y, g, s, seed=cfg.random_state, test_size=cfg.test_size)
 
-    Wn = (W - mean) / std
-    probs = model.predict(Wn, verbose=0)
-    yp = probs.argmax(axis=1)
+    Xte = (Xte - mean) / (std + 1e-8)
+    yp = model.predict(Xte, verbose=0).argmax(axis=1)
 
-    # Majority vote
-    counts = np.bincount(yp, minlength=len(classes))
-    top = int(np.argmax(counts))
-    print(f"Session {session_id:02d} predicted activity: {classes[top]}")
-    print("Window vote distribution:")
-    for i,c in enumerate(classes):
-        print(f"  {c:14s}: {counts[i]}")
+    print("\n=== WINDOW-LEVEL REPORT (Random Shuffle Split, saved model) ===")
+    print(f"Window Accuracy: {accuracy_score(yte, yp):.4f}")
+    print(classification_report(yte, yp, target_names=classes, zero_division=0))
+    cm = confusion_matrix(yte, yp)
+    print("Window Confusion matrix:")
+    print(pd.DataFrame(cm, index=classes, columns=classes))
+
+    # Session-level majority voting
+    yt_sess, yp_sess = _majority_vote_per_session(yte, yp, s_te)
+
+    print("\n=== SESSION-LEVEL REPORT (Majority Vote over windows) ===")
+    print(f"Session Accuracy: {accuracy_score(yt_sess, yp_sess):.4f}")
+    print(classification_report(yt_sess, yp_sess, target_names=classes, zero_division=0))
+    cm2 = confusion_matrix(yt_sess, yp_sess)
+    print("Session Confusion matrix:")
+    print(pd.DataFrame(cm2, index=classes, columns=classes))
+
+
 
 if __name__ == "__main__":
-    for sid in range(12, 22):
-        print("\n" + "="*40)
-        predict_session(sid)
+    main()

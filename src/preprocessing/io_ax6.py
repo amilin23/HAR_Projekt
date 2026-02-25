@@ -23,28 +23,8 @@ def find_session_file(data_root: str, sensor_id: str, session: int) -> str:
     return cand[0]
 
 def load_ax6_csv(path: str) -> pd.DataFrame:
-    """
-    Normalizes to columns:
-      t, ax, ay, az, gx, gy, gz
-    Assumes first column is time and next 6 are sensor channels.
-    """
     df = pd.read_csv(path)
-    if df.shape[1] < 7:
-        raise ValueError(f"{path} has {df.shape[1]} columns; expected >= 7")
-
-    time_col = df.columns[0]
-    df[time_col] = pd.to_datetime(df[time_col], errors="coerce")
-    df = df.dropna(subset=[time_col]).sort_values(time_col).copy()
-
-    cols = list(df.columns)
-    sensor_cols = cols[1:7]
-    out = df[[time_col] + sensor_cols].copy()
-    out.columns = ["t", "ax", "ay", "az", "gx", "gy", "gz"]
-
-    for c in ["ax","ay","az","gx","gy","gz"]:
-        out[c] = pd.to_numeric(out[c], errors="coerce")
-    out = out.dropna().reset_index(drop=True)
-    return out
+    return df
 
 def resample_to_fs(df: pd.DataFrame, fs: int) -> pd.DataFrame:
     """
@@ -57,4 +37,3 @@ def resample_to_fs(df: pd.DataFrame, fs: int) -> pd.DataFrame:
     # synthetic time: 0, 1/fs, 2/fs, ...
     df["t"] = pd.to_numeric(np.arange(len(df)) / fs)
     return df
-

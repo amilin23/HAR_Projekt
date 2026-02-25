@@ -1,167 +1,100 @@
+from __future__ import annotations
+
 import os
+from typing import Dict, Iterable, List, Tuple
+
 import numpy as np
-from typing import Dict, List, Tuple
+import pandas as pd
 
+from src.config import session_to_subject
 from src.preprocessing.io_ax6 import load_ax6_csv, resample_to_fs
-from src.config import session_to_subject, ACTIVE_SECTIONS_DATA_ROOT
 
-def window_signal(X: np.ndarray, win: int, hop: int) -> np.ndarray:
-    T, C = X.shape
-    out = []
-    for s in range(0, T - win + 1, hop):
-        out.append(X[s:s+win])
-    if not out:
-        return np.zeros((0, win, C), dtype=np.float32)
-    return np.stack(out).astype(np.float32)
+DEFAULT_ACTIVE_ROOT = os.path.join("ax6_cnn_project", "data", "active_sections_tensors")
+SENSOR_COLS = ["ax", "ay", "az", "gx", "gy", "gz"]  # 6 per wrist
+
+
+def _windowize(X: np.ndarray, win: int, hop: int) -> np.ndarray:
+    """X: [T, C] -> windows: [N, win, C]"""
+    T = X.shape[0]
+    if T < win:
+        return np.empty((0, win, X.shape[1]), dtype=np.float32)
+    starts = np.arange(0, T - win + 1, hop, dtype=np.int64)
+    out = np.stack([X[s:s + win] for s in starts], axis=0)
+    return out.astype(np.float32)
+
+
+def _to_sensor_matrix(df: pd.DataFrame, fs: int) -> np.ndarray:
+    """Return [T,6] in SENSOR_COLS order."""
+    df = resample_to_fs(df, fs)
+    missing = [c for c in SENSOR_COLS if c not in df.columns]
+    if missing:
+        raise ValueError(f"Missing columns {missing}. Found: {list(df.columns)}")
+    return df[SENSOR_COLS].to_numpy(dtype=np.float32)
+
 
 def build_dataset(
+    sessions: Iterable[int],
     fs: int,
     win_sec: float,
     hop_sec: float,
-    sessions: List[int],
-    session_to_activity: Dict[int, str]
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """
-    :param fs: frequency of sensons
-    :type fs: int
-    :param win_sec: size of windows in seconds
-    :type win_sec: float
-    :param hop_sec: offset for each window in seconds
-    :type hop_sec: float
-    :param sessions: Description
-    :type sessions: List[int]
-    :param session_to_activity: Description
-    :type session_to_activity: Dict[int, str]
-    :return: X (xyz acceloration and gyroscope for 2 sensors), y (activity), g (group/subject)
-    :rtype: Tuple[ndarray[N, windows, 12], ndarray[N], ndarray[N]]
-    """
-    win = int(win_sec * fs)
-    hop = int(hop_sec * fs)
+    session_to_activity: Dict[int, str],
+    active_root: str = DEFAULT_ACTIVE_ROOT,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
 
-    X_all, y_all, g_all = [], [], []
+    win = int(round(win_sec * fs))
+    hop = int(round(hop_sec * fs))
 
-    for sess in sessions:
-        # get associated labels
-        activity = session_to_activity.get(sess)
-        if activity is None:
+    X_list: List[np.ndarray] = []
+    y_list: List[str] = []
+    g_list: List[str] = []
+    s_list: List[int] = []
+
+    for sid in sessions:
+        if sid not in session_to_activity:
             continue
-        
-        # load preprocessed data
-        path = os.path.join(ACTIVE_SECTIONS_DATA_ROOT, str(sess) + "part")
-        t1 = resample_to_fs(load_ax6_csv(path + "1.csv"), fs).values
-        t2 = resample_to_fs(load_ax6_csv(path + "2.csv"), fs).values
 
-        # created windows of data
-        W1 = window_signal(t1, win, hop)
-        W2 = window_signal(t2, win, hop)
+        pL = os.path.join(active_root, f"{sid}part1.csv")
+        pR = os.path.join(active_root, f"{sid}part2.csv")
+        if not os.path.exists(pL) or not os.path.exists(pR):
+            raise FileNotFoundError(f"Missing active tensors for session {sid}: {pL} / {pR}")
 
-        subj = session_to_subject(sess)
-        y1 = np.array([activity] * len(W2))
-        y2 = np.array([activity] * len(W1))
-        g1 = np.array([subj] * len(W1))
-        g2 = np.array([subj] * len(W2))
+        dfL = load_ax6_csv(pL)
+        dfR = load_ax6_csv(pR)
 
-        X_all.append(W1)
-        X_all.append(W2)
-        y_all.append(y1)
-        y_all.append(y2)
-        g_all.append(g1)
-        g_all.append(g2)
+        XL = _to_sensor_matrix(dfL, fs)  # [T,6]
+        XR = _to_sensor_matrix(dfR, fs)  # [T,6]
 
-        print(f"Session {sess:02d} | {activity:14s} | subj={subj:5s} | windows={len(W1):4d}")
+        WL = _windowize(XL, win, hop)  # [NL, win, 6]
+        WR = _windowize(XR, win, hop)  # [NR, win, 6]
 
-    X_all = np.concatenate(X_all, axis=0)
-    y_all = np.concatenate(y_all, axis=0)
-    g_all = np.concatenate(g_all, axis=0)
+        if WL.shape[0] == 0 and WR.shape[0] == 0:
+            print(f"Session {sid:02d} produced 0 windows. Skipping.")
+            continue
 
-# previos version (bad training)
-# def build_two_wrist_tensor(dfL, dfR) -> np.ndarray:
-#     # [T, 12]: L(6) + R(6)
-#     return np.column_stack([
-#         dfL[["ax","ay","az","gx","gy","gz"]].values,
-#         dfR[["ax","ay","az","gx","gy","gz"]].values
-#     ])
+        activity = session_to_activity[sid]
+        subject = session_to_subject(sid)
 
-# def trim_after_clap(X: np.ndarray, clap_idx: int, fs: int,
-#                     trim_after_clap_sec: float, drop_start_sec: float, drop_end_sec: float) -> np.ndarray:
-#     start = clap_idx + int(trim_after_clap_sec*fs) + int(drop_start_sec*fs)
-#     end = len(X) - int(drop_end_sec*fs)
-#     if start >= end:
-#         return X
-#     return X[start:end]
+        # Add left windows
+        if WL.shape[0] > 0:
+            X_list.append(WL)
+            y_list.extend([activity] * WL.shape[0])
+            g_list.extend([subject] * WL.shape[0])
+            s_list.extend([sid] * WL.shape[0])
 
+        # Add right windows
+        if WR.shape[0] > 0:
+            X_list.append(WR)
+            y_list.extend([activity] * WR.shape[0])
+            g_list.extend([subject] * WR.shape[0])
+            s_list.extend([sid] * WR.shape[0])
 
-# def remove_idle_windows(W: np.ndarray, idle_energy_threshold: float) -> np.ndarray:
-#     if W.shape[0] == 0:
-#         return W
-#     # accel channels: L 0..2, R 6..8
-#     L = W[:, :, 0:3]
-#     R = W[:, :, 6:9]
-#     Lmag = np.sqrt((L**2).sum(axis=2))
-#     Rmag = np.sqrt((R**2).sum(axis=2))
-#     energy = (Lmag.std(axis=1) + Rmag.std(axis=1)) / 2.0
-#     keep = energy > idle_energy_threshold
-#     return W[keep]
+        print(f"Session {sid:02d} | {activity:<14} | subj={subject:<6} | windows={WL.shape[0]:4d} + {WR.shape[0]:4d}")
 
-# def build_dataset(
-#     data_root: str,
-#     left_id: str,
-#     right_id: str,
-#     sessions,
-#     fs: int,
-#     win_sec: float,
-#     hop_sec: float,
-#     session_to_activity: Dict[int, str],
-#     clap_search_sec: float,
-#     trim_after_clap_sec: float,
-#     drop_start_sec: float,
-#     drop_end_sec: float,
-#     remove_idle: bool,
-#     idle_energy_threshold: float
-# ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-#     """
-#     Returns:
-#       X: [N, win, 12]
-#       y_str: [N] activity string
-#       groups: [N] subject string (amy/thasa)
-#     """
-#     win = int(win_sec * fs)
-#     hop = int(hop_sec * fs)
+    if not X_list:
+        raise RuntimeError("No data loaded. Check DEFAULT_ACTIVE_ROOT and input files.")
 
-#     X_all, y_all, g_all = [], [], []
-
-#     for sess in sessions:
-#         activity = session_to_activity.get(sess)
-#         if activity is None:
-#             continue
-
-#         pL = find_session_file(data_root, left_id, sess)
-#         pR = find_session_file(data_root, right_id, sess)
-
-#         dfL = resample_to_fs(load_ax6_csv(pL), fs)
-#         dfR = resample_to_fs(load_ax6_csv(pR), fs)
-
-#         dfL_al, dfR_al, shift, clap_idx = align_by_clap(dfL, dfR, fs, clap_search_sec)
-
-#         X = build_two_wrist_tensor(dfL_al, dfR_al)
-#         X = trim_after_clap(X, clap_idx, fs, trim_after_clap_sec, drop_start_sec, drop_end_sec)
-
-#         W = window_signal(X, win, hop)
-#         if remove_idle:
-#             W = remove_idle_windows(W, idle_energy_threshold)
-
-#         subj = session_to_subject(sess)
-#         y = np.array([activity] * len(W))
-#         g = np.array([subj] * len(W))
-
-#         X_all.append(W)
-#         y_all.append(y)
-#         g_all.append(g)
-
-#         print(f"Session {sess:02d} | {activity:14s} | subj={subj:5s} | windows={len(W):4d} | shift(iR-iL)={shift}")
-
-#     X_all = np.concatenate(X_all, axis=0)
-#     y_all = np.concatenate(y_all, axis=0)
-#     g_all = np.concatenate(g_all, axis=0)
-#     return X_all, y_all, g_all
-    return X_all, y_all, g_all
+    X = np.concatenate(X_list, axis=0).astype(np.float32)
+    y_str = np.asarray(y_list, dtype=object)
+    g = np.asarray(g_list, dtype=object)
+    s = np.asarray(s_list, dtype=np.int64)
+    return X, y_str, g, s
