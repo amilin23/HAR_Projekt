@@ -40,7 +40,7 @@ class Config:
     # Train
     test_size: float = 0.1
     random_state: int = 42
-    batch_size: int = 32
+    batch_size: int = 128
     epochs: int = 40
 
 def default_session_to_activity() -> Dict[int, str]:
