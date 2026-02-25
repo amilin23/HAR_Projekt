@@ -88,7 +88,6 @@ def main():
     )
     print(f"Train: {len(Xtr)} | Val: {len(Xval)} | Test: {len(Xte)}")
 
-    # Global normalization
     mean, std = _fit_normalizer(Xtr)
     Xtr = _apply_normalizer(Xtr, mean, std)
     Xval = _apply_normalizer(Xval, mean, std)
@@ -107,16 +106,17 @@ def main():
     ]
 
     print("START TRAINING...")
-
+    
     model.fit(
         Xtr, ytr,
         validation_data=(Xval, yval),
         epochs=cfg.epochs,
         batch_size=cfg.batch_size,
         callbacks=callbacks,
-        verbose=1,
+        verbose=1
     )
 
+    # eval
     probs = model.predict(Xte, verbose=0)
     yp = probs.argmax(axis=1)
 
@@ -133,7 +133,6 @@ def main():
     _save_classes(os.path.join(cfg.out_dir, "classes.txt"), classes)
 
     print(f"\nSaved model + normalization + classes to: {cfg.out_dir}")
-
 
 if __name__ == "__main__":
     main()
