@@ -5,12 +5,7 @@ from tensorflow.keras import layers
 
 
 def make_lstm(input_shape, n_classes: int) -> keras.Model:
-    """
-    FINAL MODEL:
-    Bidirectional LSTM for HAR over windowed IMU signals.
-    Input:  [win, 6]
-    Output: 8-class softmax
-    """
+    
     model = keras.Sequential(
         [
             layers.Input(shape=input_shape),
