@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List, Literal, Tuple
 
 import numpy as np
 import pandas as pd
@@ -9,7 +9,7 @@ import pandas as pd
 from src.config import session_to_subject
 from src.preprocessing.io_ax6 import load_ax6_csv, resample_to_fs
 
-DEFAULT_ACTIVE_ROOT = os.path.join("ax6_cnn_project", "data", "active_sections_tensors")
+DEFAULT_DATA_ROOT = os.path.join("ax6_cnn_project", "data")
 SENSOR_COLS = ["ax", "ay", "az", "gx", "gy", "gz"]  # 6 per wrist
 
 
@@ -38,8 +38,9 @@ def build_dataset(
     win_sec: float,
     hop_sec: float,
     session_to_activity: Dict[int, str],
-    active_root: str = DEFAULT_ACTIVE_ROOT,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    wrist_mode: Literal["single", "combined"],
+    data_root: str = DEFAULT_DATA_ROOT
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, None|np.ndarray]:
     """
     FINAL DESIGN (NO FUSION):
       - Left wrist windows are samples
@@ -52,7 +53,10 @@ def build_dataset(
       y_str: [N] str labels
       g:     [N] subject group
       s:     [N] session id per window
+      w:     [N] indicates left or right wrist/sensor (None if wrist_mode=="combined")
     """
+    subfolder = os.path.join(data_root, "trimmed" if wrist_mode=="single" else "active_sections_tensors")
+    
     win = int(round(win_sec * fs))
     hop = int(round(hop_sec * fs))
 
@@ -60,13 +64,19 @@ def build_dataset(
     y_list: List[str] = []
     g_list: List[str] = []
     s_list: List[int] = []
+    w_list: List[int] = []
 
     for sid in sessions:
         if sid not in session_to_activity:
             continue
-
-        pL = os.path.join(active_root, f"{sid}part1.csv")
-        pR = os.path.join(active_root, f"{sid}part2.csv")
+        
+        if wrist_mode == "single":
+            pL = os.path.join(subfolder, f"{sid}left.csv")
+            pR = os.path.join(subfolder, f"{sid}right.csv")
+        elif wrist_mode == "combined":
+            pL = os.path.join(subfolder, f"{sid}part1.csv")
+            pR = os.path.join(subfolder, f"{sid}part2.csv")
+            
         if not os.path.exists(pL) or not os.path.exists(pR):
             raise FileNotFoundError(f"Missing active tensors for session {sid}: {pL} / {pR}")
 
@@ -92,6 +102,7 @@ def build_dataset(
             y_list.extend([activity] * WL.shape[0])
             g_list.extend([subject] * WL.shape[0])
             s_list.extend([sid] * WL.shape[0])
+            w_list.extend(["left"] * WL.shape[0])
 
         # Add right windows
         if WR.shape[0] > 0:
@@ -99,6 +110,7 @@ def build_dataset(
             y_list.extend([activity] * WR.shape[0])
             g_list.extend([subject] * WR.shape[0])
             s_list.extend([sid] * WR.shape[0])
+            w_list.extend(["right"] * WR.shape[0])
 
         print(f"Session {sid:02d} | {activity:<14} | subj={subject:<6} | windows={WL.shape[0]:4d} + {WR.shape[0]:4d}")
 
@@ -109,4 +121,5 @@ def build_dataset(
     y_str = np.asarray(y_list, dtype=object)
     g = np.asarray(g_list, dtype=object)
     s = np.asarray(s_list, dtype=np.int64)
-    return X, y_str, g, s
+    w = None if wrist_mode=="combined" else np.asarray(w_list, dtype=object)
+    return X, y_str, g, s, w

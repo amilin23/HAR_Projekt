@@ -13,7 +13,7 @@ class Config:
 
     # Training
     epochs: int = 40
-    batch_size: int = 32
+    batch_size: int = 64
     random_state: int = 42
     test_size: float = 0.25  # fraction for TEST
 
