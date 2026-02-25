@@ -71,13 +71,20 @@ def train_on_split(Xtr, ytr, Xte, yte, classes, Xval=None, yval=None):
     
     return {
         "acc": accuracy_score(yte, yp),
-        "f1": f1_score(yte, yp, average="weighted", labels=classes, zero_division=np.nan),
-        "cm": cm
+        "f1": f1_score(yte, yp, average="weighted", zero_division=0),
+        "cm": (cm / cm.sum(axis=1, keepdims=True))
     }
 
 
 def visualize(results: pd.DataFrame, classes):
     # Overlap comparison for each strategy
+    output_path = os.path.join(os.getcwd(), "out")
+    if not os.path.exists(output_path):
+        os.mkdir(output_path)
+    output_path = os.path.join(output_path, "crossvalidition")
+    if not os.path.exists(output_path):
+        os.mkdir(output_path)
+        
     fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
     for ax, sensor in zip(axes.flat, ["single", "combined"]):
         sns.boxplot(
@@ -91,7 +98,7 @@ def visualize(results: pd.DataFrame, classes):
         ax.set_ylabel("F1")
         ax.tick_params(axis='x', rotation=20)
     plt.tight_layout()
-    plt.savefig("overlap_vs_split.png", dpi=150)
+    plt.savefig(os.path.join(output_path, "overlap_vs_split.png"), dpi=150)
 
     # Single vs. Combined
     fig, axes = plt.subplots(1, max(2, len(results["overlap"].unique())), figsize=(15, 5), sharey=True)
@@ -105,7 +112,7 @@ def visualize(results: pd.DataFrame, classes):
         ax.tick_params(axis='x', rotation=20)
     plt.suptitle("Single vs. Combined Wrist – F1 Score", y=1.02)
     plt.tight_layout()
-    plt.savefig("single_vs_combined.png", dpi=150)
+    plt.savefig(os.path.join(output_path, "single_vs_combined.png"), dpi=150)
 
     # Heatmap der mittleren F1-Scores (Übersicht) 
     pivot = results.groupby(["sensor", "overlap", "split"])["f1"].mean().unstack("split")
@@ -114,9 +121,9 @@ def visualize(results: pd.DataFrame, classes):
         sns.heatmap(group.droplevel("sensor"), annot=True, fmt=".3f",
                     cmap="YlGnBu", ax=ax, vmin=0.5, vmax=1.0)
         ax.set_title(f"{sensor} Wrist")
-    plt.suptitle("Mittlerer F1-Score (Overlap × Split-Strategie)")
+    plt.suptitle("Mean F1-Score (Overlap × Split-Strategy)")
     plt.tight_layout()
-    plt.savefig("heatmap_overview.png", dpi=150)
+    plt.savefig(os.path.join(output_path, "heatmap_overview.png"), dpi=150)
     
     # Confusion Matrices – mean over folds per configuration
     confusion_matrices = {}
@@ -138,7 +145,7 @@ def visualize(results: pd.DataFrame, classes):
         ax.tick_params(axis='x', rotation=20)
     plt.suptitle("Confusion Matrices – Mean over Folds")
     plt.tight_layout()
-    plt.savefig("confusion_matrices.png", dpi=150)
+    plt.savefig(os.path.join(output_path, "confusion_matrices.png"), dpi=150)
 
 def main():
     sess_to_activity = default_session_to_activity()
@@ -146,20 +153,20 @@ def main():
     
     # Building datasets for seperate sensors
     singleWrist_50pOverlap = build_dataset(sessions, Config.fs, 1, 0.5, sess_to_activity, "single")
-    # singleWrist_25pOverlap = build_dataset(sessions, Config.fs, 1, 0.75, sess_to_activity, "single")
-    # singleWrist_0pOverlap = build_dataset(sessions, Config.fs, 1, 1, sess_to_activity, "single")
-    singleWrist = [singleWrist_50pOverlap]#, singleWrist_25pOverlap, singleWrist_0pOverlap]
+    singleWrist_25pOverlap = build_dataset(sessions, Config.fs, 1, 0.75, sess_to_activity, "single")
+    singleWrist_0pOverlap = build_dataset(sessions, Config.fs, 1, 1, sess_to_activity, "single")
+    singleWrist = [singleWrist_50pOverlap, singleWrist_25pOverlap, singleWrist_0pOverlap]
     
     # Building datasets for combined sensors
     combinedWrist_50pOverlap = build_dataset(sessions, Config.fs, 1, 0.5, sess_to_activity, "combined")
-    #combinedWrist_25pOverlap = build_dataset(sessions, Config.fs, 1, 0.75, sess_to_activity, "combined")
-    #combinedWrist_0pOverlap = build_dataset(sessions, Config.fs, 1, 1, sess_to_activity, "combined")
-    combinedWrist = [combinedWrist_50pOverlap]#, combinedWrist_25pOverlap, combinedWrist_0pOverlap]
+    combinedWrist_25pOverlap = build_dataset(sessions, Config.fs, 1, 0.75, sess_to_activity, "combined")
+    combinedWrist_0pOverlap = build_dataset(sessions, Config.fs, 1, 1, sess_to_activity, "combined")
+    combinedWrist = [combinedWrist_50pOverlap, combinedWrist_25pOverlap, combinedWrist_0pOverlap]
     
     print(f"\n\n{"-" * 50}\n")
     
     # SEPERATE SENSORS
-    # print(f"{"-" * 20}Single Wrist evaluation{"-" * 20}")
+    print(f"{"-" * 20}Single Wrist evaluation{"-" * 20}")
     results = []
     for overlap_label, window_set in zip(["50%", "25%", "0%"], singleWrist):
         print(f"{"-"*15}{overlap_label}{"-"*15}")
@@ -168,10 +175,10 @@ def main():
         #Xtr, Xval, ytr, yval, gtr, _, str, _, wtr, _ = train_test_split(X, y, g, s, w, test_size=0.15, stratify=y, random_state=random_state)
         
         splits_subjectsGrouped = create_kfold(X, g, "group")
-        # splits_subjectsStratified = create_kfold(X, [f"{activity}{s}" for activity, s in zip(y, g)], "stratify")
-        # splits_wristsGrouped = create_kfold(X, w, "group")
-        # splits_completlyStratified = create_kfold(X, [f"{activity}{s}{w}" for activity, s, w in zip(y, g, w)], "stratify")
-        splits_list = [splits_subjectsGrouped]#, splits_subjectsStratified, splits_wristsGrouped, splits_completlyStratified]
+        splits_subjectsStratified = create_kfold(X, [f"{activity}{s}" for activity, s in zip(y, g)], "stratify")
+        splits_wristsGrouped = create_kfold(X, w, "group")
+        splits_completlyStratified = create_kfold(X, [f"{activity}{s}{w}" for activity, s, w in zip(y, g, w)], "stratify")
+        splits_list = [splits_subjectsGrouped, splits_subjectsStratified, splits_wristsGrouped, splits_completlyStratified]
         
         titles = ["\n\nGrouped Subjects\n\n", "Stratified Subjects\n\n", "\n\nGrouped Wrists\n\n", "\n\nCompletly Stratified\n\n"]
         for split_label, splits in zip(titles, splits_list):
@@ -186,10 +193,10 @@ def main():
                     "fold": i,
                     "acc": result["acc"],
                     "f1": result["f1"],
-                    "cm": result["cm"]
+                    "cm": result["cm"].tolist()
                 })
         
-    print(f"\n{"-" * 40}\n")
+    print(f"\n{"-" * 50}\n")
     # COMBINED SENSORS
     print(f"{"-" * 20}Combined Wrist evaluation {"-" * 20}")
     for overlap_label, window_set in zip(["50%", "25%", "0%"], combinedWrist):
@@ -199,13 +206,13 @@ def main():
         #Xtr, Xte, ytr, yte, gtr, _, str, _ = train_test_split(X, y, g, s, test_size=0.15, stratify=y, random_state=random_state)
         
         splits_subjectsGrouped = create_kfold(X, g, "group")
-        #splits_subjectsStratified = create_kfold(X, [f"{activity}{s}" for activity, s in zip(y, g)], "stratify")
-        splits_list = [splits_subjectsGrouped]#, splits_subjectsStratified]
+        splits_subjectsStratified = create_kfold(X, [f"{activity}{s}" for activity, s in zip(y, g)], "stratify")
+        splits_list = [splits_subjectsGrouped, splits_subjectsStratified]
         
         titles = ["\n\nGrouped Subjects\n\n", "\n\nStratified Subjects\n\n"]
         for title, splits in zip(titles, splits_list):
             print(f"{"-"*10}{title}{"-"*10}")
-            for i, (train_idcs, test_idcs) in enumerate(splits):
+            for i, (train_idcs, test_idcs) in enumerate(splits, start=1):
                 print(f"{"-"*5}Fold: {i}{"-"*5}")
                 result = train_on_split(X[train_idcs], y[train_idcs], X[test_idcs], y[test_idcs], classes)
                 results.append({
@@ -215,6 +222,7 @@ def main():
                     "fold": i,
                     "acc": result["acc"],
                     "f1": result["f1"],
+                    "cm": result["cm"].tolist()
                 })
                 
     results = pd.DataFrame(results)
