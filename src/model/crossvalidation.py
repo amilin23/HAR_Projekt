@@ -67,85 +67,143 @@ def train_on_split(Xtr, ytr, Xte, yte, classes, Xval=None, yval=None):
     # use same validation data for restored best weights
     probs = model.predict(Xte, verbose=0)
     yp = probs.argmax(axis=1)
-    cm = confusion_matrix(yte, yp)
+    cm_raw = confusion_matrix(yte, yp)
+    cm_norm = cm_raw / cm_raw.sum(axis=1, keepdims=True)
     
     return {
         "acc": accuracy_score(yte, yp),
         "f1": f1_score(yte, yp, average="weighted", zero_division=0),
-        "cm": (cm / cm.sum(axis=1, keepdims=True))
+        "cm": cm_norm,
+        "cm_raw": cm_raw,
     }
 
 
 def visualize(results: pd.DataFrame, classes):
-    # Overlap comparison for each strategy
     output_path = os.path.join(os.getcwd(), "out")
-    if not os.path.exists(output_path):
-        os.mkdir(output_path)
+    os.makedirs(output_path, exist_ok=True)
     output_path = os.path.join(output_path, "crossvalidition")
-    if not os.path.exists(output_path):
-        os.mkdir(output_path)
-        
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
+    os.makedirs(output_path, exist_ok=True)
+
+    # Strip whitespace/newlines from split labels that came from print-titles
+    results = results.copy()
+    results["split"] = results["split"].str.strip()
+
+    # Overlap vs Split
+    fig, axes = plt.subplots(1, 2, figsize=(16, 5), sharey=True)
     for ax, sensor in zip(axes.flat, ["single", "combined"]):
         sns.boxplot(
             data=results[results["sensor"] == sensor],
-            x="split", y="f1", hue="overlap", 
-            ax=ax,
-            palette="bright"
+            x="split", y="f1", hue="overlap",
+            ax=ax, palette="bright"
         )
         ax.set_title(f"{sensor} Wrist – F1 per Split-Strategy & Overlap")
-        ax.set_xlabel("Split")
+        ax.set_xlabel("Split Strategy")
         ax.set_ylabel("F1")
-        ax.tick_params(axis='x', rotation=20)
+        ax.tick_params(axis='x', rotation=30)
+        for label in ax.get_xticklabels():
+            label.set_ha('right')
     plt.tight_layout()
-    plt.savefig(os.path.join(output_path, "overlap_vs_split.png"), dpi=150)
+    plt.savefig(os.path.join(output_path, "overlap_vs_split.png"), dpi=150, bbox_inches='tight')
+    plt.close()
 
     # Single vs. Combined
-    fig, axes = plt.subplots(1, max(2, len(results["overlap"].unique())), figsize=(15, 5), sharey=True)
-    for ax, overlap in zip(axes.flat, results["overlap"].unique()):
+    # Align both sensors on same x-axis (all split strategies), combined leaves NaN gaps
+    overlaps = results["overlap"].unique()
+    all_splits = sorted(results["split"].unique())
+    n_overlaps = len(overlaps)
+    fig, axes = plt.subplots(1, n_overlaps, figsize=(7 * n_overlaps, 5), sharey=True)
+    if n_overlaps == 1:
+        axes = [axes]
+    for ax, overlap in zip(axes, overlaps):
         sns.boxplot(
             data=results[results["overlap"] == overlap],
             x="split", y="f1", hue="sensor",
-            ax=ax
+            order=all_splits, ax=ax
         )
         ax.set_title(f"Overlap: {overlap}")
-        ax.tick_params(axis='x', rotation=20)
-    plt.suptitle("Single vs. Combined Wrist – F1 Score", y=1.02)
+        ax.set_xlabel("")
+        ax.tick_params(axis='x', rotation=30)
+        for label in ax.get_xticklabels():
+            label.set_ha('right')
+    # Single shared x-axis label
+    fig.text(0.5, -0.04, "Split Strategy", ha='center', va='center', fontsize=11)
+    fig.suptitle("Single vs. Combined Wrist – F1 Score")
     plt.tight_layout()
-    plt.savefig(os.path.join(output_path, "single_vs_combined.png"), dpi=150)
+    plt.savefig(os.path.join(output_path, "single_vs_combined.png"), dpi=150, bbox_inches='tight')
+    plt.close()
 
-    # Heatmap der mittleren F1-Scores (Übersicht) 
+    # Heatmap – shared color scale for fair comparison 
     pivot = results.groupby(["sensor", "overlap", "split"])["f1"].mean().unstack("split")
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+    vmin_h = pivot.min().min()
+    vmax_h = pivot.max().max()
+    fig, axes = plt.subplots(1, 2, figsize=(14, 4))
     for ax, (sensor, group) in zip(axes.flat, pivot.groupby(level="sensor")):
-        sns.heatmap(group.droplevel("sensor"), annot=True, fmt=".3f",
-                    cmap="YlGnBu", ax=ax, vmin=0.5, vmax=1.0)
+        sns.heatmap(
+            group.droplevel("sensor"), annot=True, fmt=".3f",
+            cmap="YlGnBu", ax=ax, vmin=vmin_h, vmax=vmax_h
+        )
         ax.set_title(f"{sensor} Wrist")
+        ax.tick_params(axis='x', rotation=30)
+        for label in ax.get_xticklabels():
+            label.set_ha('right')
     plt.suptitle("Mean F1-Score (Overlap × Split-Strategy)")
     plt.tight_layout()
-    plt.savefig(os.path.join(output_path, "heatmap_overview.png"), dpi=150)
-    
-    # Confusion Matrices – mean over folds per configuration
-    confusion_matrices = {}
-    for name, group in results.groupby(["sensor", "overlap", "split"]):
-        cms = np.array([row["cm"] for _, row in group.iterrows()])
-        confusion_matrices[name] = cms.mean(axis=0)
-    
-    configs = results.groupby(["sensor", "overlap", "split"])
-    ncols = len(results["split"].unique())
-    nrows = len(results["sensor"].unique()) * len(results["overlap"].unique())
+    plt.savefig(os.path.join(output_path, "heatmap_overview.png"), dpi=150, bbox_inches='tight')
+    plt.close()
 
-    fig, axes = plt.subplots(nrows, ncols, figsize=(ncols * 4, nrows * 3.5), sharey=True)
-    for ax, (name, _) in zip(axes.flat, configs):
-        sns.heatmap(confusion_matrices[name], annot=True, fmt=".2f", cmap="Blues", ax=ax,
-                    xticklabels=classes, yticklabels=classes, vmin=0, vmax=1)
-        ax.set_title(f"{name[0]} | {name[1]} | {name[2]}", fontsize=8)
-        ax.set_xlabel("Predicted")
-        ax.set_ylabel("True")
-        ax.tick_params(axis='x', rotation=20)
-    plt.suptitle("Confusion Matrices – Mean over Folds")
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_path, "confusion_matrices.png"), dpi=150)
+    # Confusion Matrices
+    # Build mean normalized and summed absolute CMs per configuration
+    cm_norm_mean = {}
+    cm_abs_sum = {}
+    for name, group in results.groupby(["sensor", "overlap", "split"]):
+        cm_norm_mean[name] = np.array([row["cm"] for _, row in group.iterrows()]).mean(axis=0)
+        cm_abs_sum[name] = np.array([row["cm_raw"] for _, row in group.iterrows()]).sum(axis=0)
+
+    sensors_u = list(results["sensor"].unique())
+    overlaps_u = list(results["overlap"].unique())
+    splits_u = sorted(results["split"].unique())
+    row_keys = [(s, o) for s in sensors_u for o in overlaps_u]
+    nrows = len(row_keys)
+    ncols = len(splits_u)
+
+    def _draw_cm_figure(cm_dict, fmt, title_suffix, filename, vmin=None, vmax=None):
+        cell_size = max(3.0, 22 / ncols)
+        fig, axes = plt.subplots(nrows, ncols,
+                                 figsize=(ncols * cell_size, nrows * cell_size * 0.95))
+        axes = np.array(axes).reshape(nrows, ncols)
+        for ax in axes.flat:
+            ax.set_visible(False)
+        
+        # Dynamic shared color scale
+        all_vals = np.concatenate([m.flatten() for m in cm_dict.values()])
+        _vmin = all_vals.min() if vmin is None else vmin
+        _vmax = all_vals.max() if vmax is None else vmax
+
+        for (sensor, overlap, split), cm in cm_dict.items():
+            row_idx = row_keys.index((sensor, overlap))
+            col_idx = splits_u.index(split)
+            ax = axes[row_idx, col_idx]
+            ax.set_visible(True)
+            sns.heatmap(cm, annot=True, fmt=fmt, cmap="Blues", ax=ax,
+                        xticklabels=classes, yticklabels=classes,
+                        vmin=_vmin, vmax=_vmax, cbar=False)
+            ax.set_title(f"{sensor} | {overlap} | {split}", fontsize=7, pad=3)
+            ax.set_xlabel("Predicted", fontsize=7)
+            ax.set_ylabel("True", fontsize=7)
+            ax.tick_params(axis='x', rotation=30, labelsize=6)
+            ax.tick_params(axis='y', rotation=0, labelsize=6)
+            for lbl in ax.get_xticklabels():
+                lbl.set_ha('right')
+
+        plt.suptitle(f"Confusion Matrices – {title_suffix}", y=1.01)
+        plt.tight_layout()
+        plt.savefig(os.path.join(output_path, filename), dpi=150, bbox_inches='tight')
+        plt.close()
+
+    _draw_cm_figure(cm_norm_mean, ".1f", "Mean normalized (avg over folds)",
+                    "confusion_matrices_normalized.png", vmin=0, vmax=1)
+    _draw_cm_figure(cm_abs_sum,   "d",   "Absolute sample counts (summed over folds)",
+                    "confusion_matrices_absolute.png")
 
 def main():
     sess_to_activity = default_session_to_activity()
@@ -193,7 +251,8 @@ def main():
                     "fold": i,
                     "acc": result["acc"],
                     "f1": result["f1"],
-                    "cm": result["cm"].tolist()
+                    "cm": result["cm"].tolist(),
+                    "cm_raw": result["cm_raw"].tolist(),
                 })
         
     print(f"\n{"-" * 50}\n")
@@ -222,7 +281,8 @@ def main():
                     "fold": i,
                     "acc": result["acc"],
                     "f1": result["f1"],
-                    "cm": result["cm"].tolist()
+                    "cm": result["cm"].tolist(),
+                    "cm_raw": result["cm_raw"].tolist(),
                 })
                 
     results = pd.DataFrame(results)
